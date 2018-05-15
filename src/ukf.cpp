@@ -1,6 +1,5 @@
 #include "ukf.h"
 #include "Eigen/Dense"
-#include "tools.h"
 #include <iostream>
 
 using namespace std;
@@ -23,13 +22,13 @@ UKF::UKF() {
   // if this is false, radar measurements will be ignored (except during init)
   use_radar_ = true;
 
-  // state dimension
+  // State dimension
   n_x_ = 5;
 
-  // initial state vector
+  // Initial state vector
   x_ = VectorXd( n_x_ );
 
-  // initial covariance matrix
+  // Initial covariance matrix
   P_ = MatrixXd( n_x_, n_x_ );
 
   // Process noise standard deviation longitudinal acceleration in m/s^2
@@ -55,47 +54,38 @@ UKF::UKF() {
   std_radrd_ = 0.3;
   //DO NOT MODIFY measurement noise values above these are provided by the sensor manufacturer.
   
-  // augmented state dimension
+  // Augmented state dimension
   n_aug_ = 7;
 
   n_sigma_points_ = 2*n_aug_ + 1;
 
-  // spreading parameter for sigma points
+  // Spreading parameter for sigma points
   lambda_ = 3 - n_aug_;
 
   // NIS
   NIS_radar_ = 0.;
   NIS_lidar_ = 0.;
 
-  // previous measurement time
+  // Previous measurement time
   time_us_ = 0;
 
-  // set weights
+  // Set weights
   weights_ = VectorXd( n_sigma_points_ );
   weights_(0) = lambda_/( lambda_ + n_aug_ );
   for( int i=1; i<n_sigma_points_; i++ ) {
     weights_(i) = (double) ( 0.5 / ( n_aug_ + lambda_ ) );
   }
 
-  // initial state vector
+  // Initialize state vector
   x_ = VectorXd( n_x_ );
   x_.fill(1.);
 
-  // initial covariance matrix
+  // Initialze covariance matrix
   P_ = MatrixXd( n_x_, n_x_ );
   P_.fill(0.);
-  for( int i=0;i < n_x_; i++ ) {
-    P_.diagonal()[i] = 1.;
-  }
-
-  // predicted sigma points
-  Xsig_pred_ = MatrixXd( n_x_, n_sigma_points_ );
-
-  // agumented sigma points
-  Xsig_aug_ = MatrixXd( n_aug_, n_sigma_points_ );
+  P_ = MatrixXd::Identity( n_x_, n_x_ );
 
   is_initialized_ = false;
-
 }
 
 //=============================================================================
@@ -116,7 +106,7 @@ UKF::~UKF() {}
 //  @params:  meas_package
 //  @return:  void 
 //=============================================================================
-void UKF::ProcessMeasurement(MeasurementPackage meas_package) {
+void UKF::ProcessMeasurement( MeasurementPackage meas_package ) {
 
   //  Initialization
   if( !is_initialized_ ) {
@@ -125,7 +115,7 @@ void UKF::ProcessMeasurement(MeasurementPackage meas_package) {
   }
 
   //  Prediction
-  double delta_t = ( meas_package.timestamp_ - time_us_ ) / 1000000.0;
+  const double delta_t = ( meas_package.timestamp_ - time_us_ ) / 1000000.0;
   time_us_ = meas_package.timestamp_;
   Prediction( delta_t );
 
@@ -144,7 +134,6 @@ void UKF::ProcessMeasurement(MeasurementPackage meas_package) {
   // print the output
   cout << "x_ = " << x_ << endl;
   cout << "P_ = " << P_ << endl;
-
 }
 
 //=============================================================================
@@ -155,7 +144,7 @@ void UKF::ProcessMeasurement(MeasurementPackage meas_package) {
 //  @params:  double delta_t 
 //  @return:  void 
 //=============================================================================
-void UKF::Prediction( double delta_t ) {
+void UKF::Prediction( const double delta_t ) {
 
   CreateAugmentedSigmaPoints();
 
@@ -206,7 +195,6 @@ void UKF::InitializeStateVector( MeasurementPackage meas_package ) {
   }
 
   is_initialized_ = true; 
-
 }
 
 //=============================================================================
@@ -220,14 +208,14 @@ VectorXd UKF::PolarToCartesian( const VectorXd &v_in ) {
 
   VectorXd v_out( n_x_ );
 
-  auto rho = v_in(0);
-  auto phi = v_in(1);
-  auto rho_dot = v_in(2);
+  const auto rho = v_in(0);
+  const auto phi = v_in(1);
+  const auto rho_dot = v_in(2);
 
-  auto px = rho * cos( phi );
-  auto py = rho * sin( phi );
-  auto vx = rho_dot * cos( phi );
-  auto vy = rho_dot * sin( phi );
+  const auto px = rho * cos( phi );
+  const auto py = rho * sin( phi );
+  const auto vx = rho_dot * cos( phi );
+  const auto vy = rho_dot * sin( phi );
 
   v_out << px, py, sqrt( vx*vx + vy*vy ), 0, 0;
 
@@ -282,6 +270,9 @@ VectorXd UKF::InitializeLidarVector( const VectorXd &v_in ) {
 //=============================================================================
 void UKF::CreateAugmentedSigmaPoints() {
 
+  // Augmented sigma points
+  Xsig_aug_ = MatrixXd( n_aug_, n_sigma_points_ );
+
   VectorXd x_aug = VectorXd( n_aug_ );
 
   // Create augmented state covariance
@@ -318,18 +309,21 @@ void UKF::CreateAugmentedSigmaPoints() {
 //  @params: double delta_t
 //  @return: void
 //=============================================================================
-void UKF::PredictSigmaPoints( double delta_t ) {
+void UKF::PredictSigmaPoints( const double delta_t ) {
+
+  // Predicted sigma points
+  Xsig_pred_ = MatrixXd( n_x_, n_sigma_points_ );
 
   // Predict sigma points
   for( int i = 0; i< n_sigma_points_; i++ ) {
     // Extract values for better readability
-    auto p_x = Xsig_aug_( 0,i );
-    auto p_y = Xsig_aug_( 1,i );
-    auto v = Xsig_aug_( 2,i );
-    auto yaw = Xsig_aug_( 3,i );
-    auto yawd = Xsig_aug_( 4,i );
-    auto nu_a = Xsig_aug_( 5,i );
-    auto nu_yawdd = Xsig_aug_( 6,i );
+    const auto p_x = Xsig_aug_( 0,i );
+    const auto p_y = Xsig_aug_( 1,i );
+    const auto v = Xsig_aug_( 2,i );
+    const auto yaw = Xsig_aug_( 3,i );
+    const auto yawd = Xsig_aug_( 4,i );
+    const auto nu_a = Xsig_aug_( 5,i );
+    const auto nu_yawdd = Xsig_aug_( 6,i );
 
     // Predicted state values
     double px_p, py_p;
@@ -369,7 +363,6 @@ void UKF::PredictSigmaPoints( double delta_t ) {
   }
 }
 
-
 //=============================================================================
 //  @brief: PredictMeanAndCovariance()
 //          Update the state (x_) and covariance (P_) using the predicted 
@@ -396,7 +389,6 @@ void UKF::PredictMeanAndCovariance() {
     x_diff(3) = NormaliseAngle( x_diff(3) );
     P_ = P_ + weights_(i) * x_diff * x_diff.transpose() ;
   }
-
 }
 
 //=============================================================================
@@ -421,8 +413,8 @@ void UKF::UpdateLidar( MeasurementPackage meas_package ) {
   // Transform sigma points into measurement space
   for( int i = 0; i < n_sigma_points_; i++ ) {
     // Extract values for better readibility
-    auto p_x = Xsig_pred_( 0,i );
-    auto p_y = Xsig_pred_( 1,i );
+    const auto p_x = Xsig_pred_( 0,i );
+    const auto p_y = Xsig_pred_( 1,i );
 
     // Measurement model
     Zsig( 0,i ) = p_x;
@@ -498,7 +490,7 @@ void UKF::UpdateLidar( MeasurementPackage meas_package ) {
 //=============================================================================
 void UKF::UpdateRadar( MeasurementPackage meas_package ) {
 
-  int n_z = 3;
+  const int n_z = 3;
 
   VectorXd z = meas_package.raw_measurements_;
 
@@ -508,13 +500,13 @@ void UKF::UpdateRadar( MeasurementPackage meas_package ) {
   // Transform sigma points into measurement space
   for( int i = 0; i < n_sigma_points_; i++ ) {
     // Extract values for better readibility
-    auto p_x = Xsig_pred_( 0,i );
-    auto p_y = Xsig_pred_( 1,i );
-    auto v   = Xsig_pred_( 2,i );
-    auto yaw = Xsig_pred_( 3,i );
+    const auto p_x = Xsig_pred_( 0,i );
+    const auto p_y = Xsig_pred_( 1,i );
+    const auto v   = Xsig_pred_( 2,i );
+    const auto yaw = Xsig_pred_( 3,i );
 
-    auto v1 = cos( yaw ) * v;
-    auto v2 = sin( yaw ) * v;
+    const auto v1 = cos( yaw ) * v;
+    const auto v2 = sin( yaw ) * v;
 
     // Measurement model
     Zsig( 0,i ) = sqrt( p_x*p_x + p_y*p_y );
@@ -580,5 +572,4 @@ void UKF::UpdateRadar( MeasurementPackage meas_package ) {
   // Calculate NIS
   NIS_radar_ = ( z - z_pred ).transpose() * S.inverse() * ( z - z_pred );
   cout << "NIS Radar: " << NIS_radar_ << endl;
-
 }
