@@ -424,6 +424,7 @@ void UKF::UpdateLidar( MeasurementPackage meas_package ) {
   // Mean predicted measurement z_pred
   VectorXd z_pred = VectorXd( n_z );
   z_pred.fill(0.0);
+
   for( int i=0; i < n_sigma_points_; i++ ) {
     z_pred = z_pred + weights_(i) * Zsig.col(i);
   }
@@ -431,6 +432,7 @@ void UKF::UpdateLidar( MeasurementPackage meas_package ) {
   // Measurement covariance matrix S
   MatrixXd S = MatrixXd( n_z,n_z );
   S.fill(0.0);
+  
   for( int i = 0; i < n_sigma_points_; i++ ) {
     // Residual
     VectorXd z_diff = Zsig.col(i) - z_pred;
